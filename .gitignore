@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# AWS
+.aws/
+
+# IDE
+.idea/
+.vscode/
+
+# Data
+data/*
+!data/.gitkeep
+
+# Environment
+.env

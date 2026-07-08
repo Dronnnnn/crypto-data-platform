@@ -1,24 +1,25 @@
 # Python
-.venv/
 __pycache__/
-*.pyc
-
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-.terraform.lock.hcl
-
-# AWS
-.aws/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
 
 # IDE
 .idea/
 .vscode/
 
-# Data
-data/*
-!data/.gitkeep
-
 # Environment
 .env
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+
+# OS
+.DS_Store
+Thumbs.db

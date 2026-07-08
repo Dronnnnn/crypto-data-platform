@@ -1,9 +1,5 @@
 resource "aws_s3_bucket" "data_lake" {
-  bucket_prefix = "crypto-data-platform-raw-"
+  bucket_prefix = "${local.project_name}-raw-"
 
-  tags = {
-    Project     = "crypto-data-platform"
-    Environment = "dev"
-    ManagedBy   = "Terraform"
-  }
+  tags = local.common_tags
 }

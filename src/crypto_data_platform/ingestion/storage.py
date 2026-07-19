@@ -6,6 +6,7 @@ from pathlib import Path
 from crypto_data_platform.common.config import settings
 from crypto_data_platform.common.exceptions import StorageError
 from crypto_data_platform.common.logger import get_logger
+from crypto_data_platform.common.path_builder import build_local_file_path
 from crypto_data_platform.models.price import Price
 
 logger = get_logger(__name__)
@@ -13,7 +14,10 @@ logger = get_logger(__name__)
 RAW_DATA_DIR = Path(settings.raw_data_path)
 
 
-def save_json(data: Price) -> Path:
+def save_json(
+    data: Price,
+    source: str,
+) -> Path:
     """
     Save API response to local JSON file.
     """
@@ -26,14 +30,18 @@ def save_json(data: Price) -> Path:
     )
 
     try:
-        RAW_DATA_DIR.mkdir(
+        ingest_time = datetime.now(UTC)
+
+        file_path = build_local_file_path(
+            source,
+            data.symbol,
+            ingest_time,
+        )
+
+        file_path.parent.mkdir(
             parents=True,
             exist_ok=True,
         )
-
-        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-
-        file_path = RAW_DATA_DIR / f"{symbol.lower()}_{timestamp}.json"
 
         with open(
             file_path,
@@ -55,4 +63,6 @@ def save_json(data: Price) -> Path:
         return file_path
 
     except OSError as error:
-        raise StorageError(f"Failed to save file {file_path}") from error
+        logger.exception("Failed to save file")
+
+        raise StorageError("Failed to save file") from error

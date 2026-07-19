@@ -1,5 +1,6 @@
 import argparse
 
+from crypto_data_platform.common.config import settings
 from crypto_data_platform.common.logger import get_logger
 from crypto_data_platform.ingestion.api_client import fetch_symbol_price
 from crypto_data_platform.ingestion.storage import save_json
@@ -9,9 +10,7 @@ logger = get_logger(__name__)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Download market data from Binance."
-    )
+    parser = argparse.ArgumentParser(description="Download market data from Binance.")
 
     parser.add_argument(
         "--symbol",
@@ -25,11 +24,14 @@ def parse_args():
 def run_pipeline(symbol: str) -> None:
     logger.info("Starting ingestion pipeline")
 
-    data = fetch_symbol_price(symbol)
+    price = fetch_symbol_price(symbol)
 
-    file_path = save_json(data)
+    file_path = save_json(price)
 
-    upload_file(file_path, 'raw')
+    upload_file(
+        file_path=file_path,
+        prefix=settings.s3_raw_prefix,
+    )
 
     logger.info("Pipeline finished successfully")
 

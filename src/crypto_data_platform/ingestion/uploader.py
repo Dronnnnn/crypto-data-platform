@@ -1,33 +1,23 @@
-from datetime import UTC, datetime
 from pathlib import Path
-
-from botocore.exceptions import BotoCoreError, ClientError
 
 from crypto_data_platform.common.aws import get_s3_client
 from crypto_data_platform.common.config import settings
 from crypto_data_platform.common.exceptions import UploadError
 from crypto_data_platform.common.logger import get_logger
-from crypto_data_platform.common.path_builder import build_s3_key
 
 logger = get_logger(__name__)
 
 
-def upload_file(
-    file_path: Path,
-    source: str,
-    symbol: str,
-) -> None:
+def upload_file(file_path: Path) -> None:
     """
-    Upload file to S3 bucket.
+    Upload local file to S3.
     """
 
-    ingest_time = datetime.now(UTC)
+    client = get_s3_client()
 
-    s3_key = build_s3_key(
-        source,
-        symbol,
-        ingest_time,
-    )
+    relative_path = file_path.relative_to(settings.raw_data_path)
+
+    s3_key = f"{settings.s3_raw_prefix}/{relative_path.as_posix()}"
 
     logger.info(
         "Uploading %s to s3://%s/%s",
@@ -36,8 +26,6 @@ def upload_file(
         s3_key,
     )
 
-    client = get_s3_client()
-
     try:
         client.upload_file(
             str(file_path),
@@ -45,7 +33,9 @@ def upload_file(
             s3_key,
         )
 
-    except (ClientError, BotoCoreError) as error:
-        raise UploadError(f"Failed to upload {file_path.name}") from error
+    except Exception as error:
+        raise UploadError(
+            f"Failed to upload {file_path.name}"
+        ) from error
 
     logger.info("Upload completed")

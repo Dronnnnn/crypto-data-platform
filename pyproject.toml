@@ -4,6 +4,14 @@ version = "0.1.0"
 description = "AWS Data Engineering Pet Project"
 requires-python = ">=3.11"
 
+dependencies = [
+    "boto3>=1.43",
+    "requests>=2.34",
+    "python-dotenv>=1.2",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.14",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 

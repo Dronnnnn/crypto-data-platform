@@ -22,20 +22,15 @@ def save_json(
     Save API response to local JSON file.
     """
 
-    symbol = data.symbol
-
-    logger.info(
-        "Saving data for %s",
-        symbol,
-    )
+    logger.info("Saving data for %s", data.symbol)
 
     try:
         ingest_time = datetime.now(UTC)
 
         file_path = build_local_file_path(
-            source,
-            data.symbol,
-            ingest_time,
+            source=source,
+            symbol=data.symbol,
+            ingest_time=ingest_time,
         )
 
         file_path.parent.mkdir(
@@ -43,11 +38,7 @@ def save_json(
             exist_ok=True,
         )
 
-        with open(
-            file_path,
-            "w",
-            encoding="utf-8",
-        ) as file:
+        with open(file_path, "w", encoding="utf-8") as file:
             json.dump(
                 asdict(data),
                 file,
@@ -55,14 +46,10 @@ def save_json(
                 ensure_ascii=False,
             )
 
-        logger.info(
-            "Saved file %s",
-            file_path,
-        )
+        logger.info("Saved file %s", file_path)
 
         return file_path
 
     except OSError as error:
         logger.exception("Failed to save file")
-
         raise StorageError("Failed to save file") from error

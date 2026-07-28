@@ -1,16 +1,12 @@
-from dataclasses import asdict
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from airflow.decorators import dag, task
 from airflow.models import Variable
 from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 
 from crypto_data_platform.common.constants import BINANCE_SOURCE
-from crypto_data_platform.ingestion.api_client import fetch_symbol_price
-from crypto_data_platform.ingestion.storage import save_json
-from crypto_data_platform.ingestion.uploader import upload_file
-from crypto_data_platform.models.price import Price
+from crypto_data_platform.ingestion.api_client import fetch_price
+from crypto_data_platform.ingestion.raw_storage import upload_raw_json
 
 SYMBOL = Variable.get("SYMBOL", default_var="BTCUSDT")
 EMAILS = Variable.get("EMAILS", default_var="").split(",")
@@ -62,29 +58,12 @@ default_args = {
 def binance_ingestion():
 
     @task
-    def extract():
-        symbol = SYMBOL
-        price = fetch_symbol_price(symbol)
+    def ingest_raw() -> str:
+        """Fetch the unmodified Binance response and land it directly in S3 Raw."""
+        payload = fetch_price(SYMBOL)
+        return upload_raw_json(payload, source=BINANCE_SOURCE, symbol=SYMBOL)
 
-        return asdict(price)
-
-    @task
-    def save(price_dict):
-        price = Price(**price_dict)
-
-        path = save_json(price, BINANCE_SOURCE)
-
-        return str(path)
-
-    @task
-    def upload(path: str):
-        upload_file(file_path=Path(path))
-
-    upload(
-        save(
-            extract(),
-        )
-    )
+    ingest_raw()
 
 
 binance_ingestion()

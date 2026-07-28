@@ -20,6 +20,12 @@ __pycache__/
 crash.log
 *.tfplan
 
+# Runtime artifacts
+airflow/logs/
+logs/
+data/raw/
+*.egg-info/
+
 # OS
 .DS_Store
 Thumbs.db

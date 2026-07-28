@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     request_timeout: int = 10
     max_retries: int = 3
 
-    raw_data_path: str = "data/raw"
     s3_raw_prefix: str = "raw"
 
     log_level: str = "INFO"

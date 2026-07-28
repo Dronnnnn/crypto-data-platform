@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from typing import Any
 
 import requests
 
@@ -6,12 +6,11 @@ from crypto_data_platform.common.config import settings
 from crypto_data_platform.common.exceptions import APIError
 from crypto_data_platform.common.logger import get_logger
 from crypto_data_platform.common.retry import sleep_before_retry
-from crypto_data_platform.models.price import Price
 
 logger = get_logger(__name__)
 
 
-def fetch_symbol_price(symbol: str) -> Price:
+def fetch_price(symbol: str) -> dict[str, Any]:
     """
     Fetch current symbol price from Binance API.
     """
@@ -28,18 +27,12 @@ def fetch_symbol_price(symbol: str) -> Price:
 
             response.raise_for_status()
 
-            data = response.json()
-
             logger.info(
                 "Fetched price for %s",
                 symbol,
             )
 
-            return Price(
-                symbol=data["symbol"],
-                price=float(data["price"]),
-                timestamp=datetime.now(UTC).isoformat(),
-            )
+            return response.json()
 
         except requests.exceptions.RequestException as error:
             logger.warning(

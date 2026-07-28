@@ -2,9 +2,8 @@ from argparse import ArgumentParser
 
 from crypto_data_platform.common.constants import BINANCE_SOURCE
 from crypto_data_platform.common.logger import get_logger
-from crypto_data_platform.ingestion.api_client import fetch_symbol_price
-from crypto_data_platform.ingestion.storage import save_json
-from crypto_data_platform.ingestion.uploader import upload_file
+from crypto_data_platform.ingestion.api_client import fetch_price
+from crypto_data_platform.ingestion.raw_storage import upload_raw_json
 
 logger = get_logger(__name__)
 
@@ -12,18 +11,10 @@ logger = get_logger(__name__)
 def run_pipeline(symbol: str) -> None:
     logger.info("Starting ingestion pipeline")
 
-    price = fetch_symbol_price(symbol)
+    payload = fetch_price(symbol)
+    key = upload_raw_json(payload, source=BINANCE_SOURCE, symbol=symbol)
 
-    file_path = save_json(
-        price,
-        BINANCE_SOURCE,
-    )
-
-    upload_file(
-        file_path=file_path
-    )
-
-    logger.info("Pipeline finished successfully")
+    logger.info("Pipeline finished successfully: s3_key=%s", key)
 
 
 def main() -> None:

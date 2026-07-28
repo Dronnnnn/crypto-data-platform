@@ -8,7 +8,6 @@ dependencies = [
     "boto3>=1.43",
     "requests>=2.34",
     "python-dotenv>=1.2",
-    "pydantic>=2.13",
     "pydantic-settings>=2.14",
 ]
 

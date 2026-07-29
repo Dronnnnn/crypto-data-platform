@@ -1,0 +1,12 @@
+FROM apache/spark:3.5.6
+
+USER root
+
+RUN pip install --no-cache-dir pytest
+
+ENV SPARK_HOME=/opt/spark
+ENV PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.7-src.zip
+
+WORKDIR /workspace
+
+ENTRYPOINT ["python3", "-m", "pytest"]

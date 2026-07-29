@@ -2,3 +2,5 @@ boto3
 requests
 python-dotenv
 pydantic-settings
+apache-airflow-providers-apache-spark
+pyspark==3.5.6

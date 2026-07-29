@@ -69,6 +69,9 @@ x-airflow-common:
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:-airflow_jwt_secret}
     AIRFLOW__API_AUTH__JWT_ISSUER: ${AIRFLOW__API_AUTH__JWT_ISSUER:-airflow}
+    AIRFLOW_CONN_SPARK_DEFAULT: spark://spark-master:7077
+    AWS_PROFILE: default
+    AWS_SHARED_CREDENTIALS_FILE: /home/airflow/.aws/credentials
     # yamllint disable rule:line-length
     # Use simple http server on scheduler for health checks
     # See https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/check-health.html#scheduler-health-check-server
@@ -316,6 +319,52 @@ services:
       - airflow
     depends_on:
       <<: *airflow-common-depends-on
+
+  spark-master:
+    image: apache/spark:3.5.6
+#    profiles: ["spark"]
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      SPARK_MASTER_PORT: 7077
+      SPARK_MASTER_WEBUI_PORT: 8080
+    ports:
+      - "7077:7077"
+      - "8081:8080"
+    restart: unless-stopped
+
+  spark-worker:
+    image: apache/spark:3.5.6
+#    profiles: ["spark"]
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.worker.Worker
+      - spark://spark-master:7077
+    environment:
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 2g
+      AWS_PROFILE: default
+      AWS_SHARED_CREDENTIALS_FILE: /home/spark/.aws/credentials
+    volumes:
+      - ${USERPROFILE}/.aws:/home/spark/.aws:ro
+    depends_on:
+      - spark-master
+    restart: unless-stopped
+
+  spark-tests:
+    build:
+      context: .
+      dockerfile: spark/Dockerfile.test
+    profiles: ["test"]
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    command:
+      - -q
+      - tests/test_bronze_binance.py
+      - tests/test_bronze_to_silver.py
 
   # You can enable flower by adding "--profile flower" option e.g. docker-compose --profile flower up
   # or by explicitly targeted on the command line e.g. docker-compose up flower.

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     max_retries: int = 3
 
     s3_raw_prefix: str = "raw"
+    s3_bronze_prefix: str = "bronze"
+    s3_silver_prefix: str = "silver"
+    s3_quarantine_prefix: str = "quarantine"
 
     log_level: str = "INFO"
 

@@ -1,9 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from airflow.decorators import dag, task
 from airflow.models import Variable
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 
+from crypto_data_platform.common.config import settings
 from crypto_data_platform.common.constants import BINANCE_SOURCE
 from crypto_data_platform.ingestion.api_client import fetch_price
 from crypto_data_platform.ingestion.raw_storage import upload_raw_json
@@ -26,24 +28,10 @@ failure_callback = send_smtp_notification(
     """,
 )
 
-retry_callback = send_smtp_notification(
-    to=EMAILS,
-    subject="[Airflow] Task Retry: {{ ti.task_id }}",
-    html_content="""
-    <h3>Task retry</h3>
-
-    <p><b>DAG:</b> {{ dag.dag_id }}</p>
-    <p><b>Task:</b> {{ ti.task_id }}</p>
-    <p><b>Attempt:</b> {{ ti.try_number }}</p>
-    """,
-)
-
 default_args = {
     "owner": "data-engineering",
-    "retries": 3,
-    "retry_delay": timedelta(minutes=2),
+    "retries": 0,
     "on_failure_callback": failure_callback,
-    "on_retry_callback": retry_callback,
 }
 
 
@@ -63,7 +51,61 @@ def binance_ingestion():
         payload = fetch_price(SYMBOL)
         return upload_raw_json(payload, source=BINANCE_SOURCE, symbol=SYMBOL)
 
-    ingest_raw()
+    raw_key = ingest_raw()
+
+    raw_to_bronze = SparkSubmitOperator(
+        task_id="raw_to_bronze",
+        application="/opt/airflow/project/spark/jobs/bronze_binance.py",
+        conn_id="spark_default",
+        name="binance_raw_to_bronze",
+        deploy_mode="client",
+        packages="org.apache.hadoop:hadoop-aws:3.3.4",
+        conf={
+            "spark.hadoop.fs.s3a.aws.credentials.provider": (
+                "com.amazonaws.auth.profile.ProfileCredentialsProvider"
+            ),
+            "spark.hadoop.fs.s3a.endpoint.region": settings.aws_region,
+            "spark.jars.ivy": "/tmp/spark-ivy-cache",
+            "spark.sql.sources.partitionOverwriteMode": "dynamic",
+        },
+        env_vars={
+            "S3_BUCKET": settings.s3_bucket,
+            "S3_RAW_PREFIX": settings.s3_raw_prefix,
+            "S3_BRONZE_PREFIX": settings.s3_bronze_prefix,
+            "S3_QUARANTINE_PREFIX": settings.s3_quarantine_prefix,
+            "AWS_PROFILE": "default",
+            "AWS_SHARED_CREDENTIALS_FILE": "/home/airflow/.aws/credentials",
+        },
+        verbose=True,
+    )
+
+    bronze_to_silver = SparkSubmitOperator(
+        task_id="bronze_to_silver",
+        application="/opt/airflow/project/spark/jobs/bronze_to_silver.py",
+        conn_id="spark_default",
+        name="binance_bronze_to_silver",
+        deploy_mode="client",
+        packages="org.apache.hadoop:hadoop-aws:3.3.4",
+        conf={
+            "spark.hadoop.fs.s3a.aws.credentials.provider": (
+                "com.amazonaws.auth.profile.ProfileCredentialsProvider"
+            ),
+            "spark.hadoop.fs.s3a.endpoint.region": settings.aws_region,
+            "spark.jars.ivy": "/tmp/spark-ivy-cache",
+            "spark.sql.sources.partitionOverwriteMode": "dynamic",
+        },
+        env_vars={
+            "S3_BUCKET": settings.s3_bucket,
+            "S3_BRONZE_PREFIX": settings.s3_bronze_prefix,
+            "S3_SILVER_PREFIX": settings.s3_silver_prefix,
+            "S3_QUARANTINE_PREFIX": settings.s3_quarantine_prefix,
+            "AWS_PROFILE": "default",
+            "AWS_SHARED_CREDENTIALS_FILE": "/home/airflow/.aws/credentials",
+        },
+        verbose=True,
+    )
+
+    raw_key >> raw_to_bronze >> bronze_to_silver
 
 
 binance_ingestion()

@@ -12,6 +12,7 @@ from pyspark.sql.functions import (
     length,
     lit,
     lower,
+    sha2,
     to_date,
     trim,
     upper,
@@ -56,7 +57,12 @@ def transform_bronze_to_silver(bronze: DataFrame) -> tuple[DataFrame, DataFrame]
     invalid = checked.filter(length(col("quarantine_reason")) > 0)
     valid = checked.filter(length(col("quarantine_reason")) == 0)
 
-    silver = valid.dropDuplicates(["raw_file_path"]).select(
+    # The hash is a stable technical identifier for one landed Raw object. It
+    # keeps the physical S3 path private while preserving record-level lineage.
+    silver = valid.dropDuplicates(["raw_file_path"]).withColumn(
+        "record_id", sha2(col("raw_file_path"), 256)
+    ).select(
+        "record_id",
         "source",
         "symbol",
         "price",

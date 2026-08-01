@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
+from hashlib import sha256
 
 import pytest
 
@@ -58,6 +59,9 @@ def test_valid_bronze_record_is_transformed_to_silver(spark: SparkSession) -> No
     assert record.source == "binance"
     assert record.symbol == "BTCUSDT"
     assert record.price == Decimal("118000.12000000")
+    assert record.record_id == sha256(
+        b"s3a://lake/raw/source=binance/file.json"
+    ).hexdigest()
 
 
 def test_invalid_price_is_rejected_from_silver(spark: SparkSession) -> None:
@@ -115,6 +119,7 @@ def test_silver_schema_is_the_canonical_contract(spark: SparkSession) -> None:
     silver, _ = transform_bronze_to_silver(bronze)
 
     assert [(field.name, field.dataType.simpleString()) for field in silver.schema] == [
+        ("record_id", "string"),
         ("source", "string"),
         ("symbol", "string"),
         ("price", "decimal(20,8)"),

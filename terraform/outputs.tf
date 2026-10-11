@@ -32,3 +32,28 @@ output "athena_silver_analyst_policy_arn" {
   description = "IAM policy to attach to an analyst role or group when least-privilege Athena access is needed"
   value       = aws_iam_policy.athena_silver_analyst.arn
 }
+
+output "redshift_database_name" {
+  description = "Initial database in the Redshift Serverless namespace"
+  value       = aws_redshiftserverless_namespace.warehouse.db_name
+}
+
+output "redshift_workgroup_name" {
+  description = "Redshift Serverless workgroup name"
+  value       = aws_redshiftserverless_workgroup.warehouse.workgroup_name
+}
+
+output "redshift_endpoint_host" {
+  description = "Private Redshift Serverless endpoint hostname"
+  value       = aws_redshiftserverless_workgroup.warehouse.endpoint[0].address
+}
+
+output "redshift_endpoint_port" {
+  description = "Redshift Serverless endpoint port"
+  value       = aws_redshiftserverless_workgroup.warehouse.endpoint[0].port
+}
+
+output "redshift_spectrum_role_arn" {
+  description = "IAM role attached to Redshift for Spectrum reads of Silver"
+  value       = aws_iam_role.redshift_spectrum.arn
+}

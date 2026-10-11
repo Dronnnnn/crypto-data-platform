@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: stg_crypto_prices
+    description: Standardized and defensively filtered view of Spectrum Silver prices.
+    columns:
+      - name: record_id
+        tests:
+          - not_null
+          - unique
+      - name: symbol
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('crypto_symbols')
+                field: symbol
+      - name: price
+        tests:
+          - not_null
+          - positive_value

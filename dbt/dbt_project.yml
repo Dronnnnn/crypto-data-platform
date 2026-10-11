@@ -1,0 +1,32 @@
+name: crypto_data_platform
+version: "1.0.0"
+config-version: 2
+
+profile: crypto_data_platform
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  crypto_data_platform:
+    staging:
+      # Redshift cannot create a view that directly selects from a Spectrum
+      # external table. Materialize the S3-backed source as a regular local
+      # table before downstream views and Gold marts use it.
+      +materialized: table
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: gold
+
+seeds:
+  crypto_data_platform:
+    +schema: reference

@@ -1,0 +1,24 @@
+version: 2
+
+sources:
+  - name: spectrum_silver
+    description: >
+      Canonical Silver crypto-price data in S3, exposed to Redshift through the
+      Spectrum external schema backed by AWS Glue Data Catalog.
+    schema: spectrum_silver
+    tables:
+      - name: silver_crypto_prices
+        description: One validated Binance price payload per stable record_id.
+        columns:
+          - name: record_id
+            description: SHA-256 technical identifier of the landed Raw object.
+            tests:
+              - not_null
+              - unique
+          - name: symbol
+            tests:
+              - not_null
+          - name: price
+            tests:
+              - not_null
+              - positive_value

@@ -34,3 +34,57 @@ variable "athena_workgroup_name" {
   type        = string
   default     = "crypto-data-platform"
 }
+
+variable "redshift_namespace_name" {
+  description = "Redshift Serverless namespace name"
+  type        = string
+  default     = "crypto-data-platform"
+}
+
+variable "redshift_workgroup_name" {
+  description = "Redshift Serverless workgroup name"
+  type        = string
+  default     = "crypto-data-platform"
+}
+
+variable "redshift_database_name" {
+  description = "Initial database created in the Redshift Serverless namespace"
+  type        = string
+  default     = "crypto_warehouse"
+}
+
+variable "redshift_admin_username" {
+  description = "Administrator username for the Redshift Serverless namespace"
+  type        = string
+  default     = "adminuser"
+}
+
+variable "redshift_base_capacity" {
+  description = "Redshift Processing Units (RPUs) allocated to the Serverless workgroup"
+  type        = number
+  default     = 8
+}
+
+variable "redshift_port" {
+  description = "TCP port used by the Redshift Serverless endpoint"
+  type        = number
+  default     = 5439
+}
+
+variable "redshift_publicly_accessible" {
+  description = "Whether the Redshift endpoint may be reached from the public internet"
+  type        = bool
+  default     = false
+}
+
+variable "redshift_allowed_cidr" {
+  description = "Single trusted client CIDR allowed to reach Redshift when public access is explicitly enabled"
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = !var.redshift_publicly_accessible || var.redshift_allowed_cidr != null
+    error_message = "Set redshift_allowed_cidr when redshift_publicly_accessible is true."
+  }
+}

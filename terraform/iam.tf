@@ -80,3 +80,66 @@ resource "aws_iam_policy" "athena_silver_analyst" {
 
   tags = local.common_tags
 }
+
+data "aws_iam_policy_document" "redshift_spectrum_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["redshift.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "redshift_spectrum" {
+  statement {
+    sid = "ListDataLakeBucket"
+
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListBucket",
+    ]
+
+    resources = ["arn:aws:s3:::${local.data_lake_bucket_name}"]
+  }
+
+  statement {
+    sid       = "ReadSilverParquet"
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::${local.data_lake_bucket_name}/silver/*"]
+  }
+
+  statement {
+    sid = "ReadGlueCatalogMetadata"
+
+    actions = [
+      "glue:GetDatabase",
+      "glue:GetDatabases",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:BatchGetPartition",
+    ]
+
+    resources = [
+      "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:catalog",
+      "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:database/${var.glue_database_name}",
+      "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.glue_database_name}/${var.silver_crypto_prices_table_name}",
+    ]
+  }
+}
+
+resource "aws_iam_role" "redshift_spectrum" {
+  name               = "${local.name_prefix}-redshift-spectrum"
+  assume_role_policy = data.aws_iam_policy_document.redshift_spectrum_assume_role.json
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "redshift_spectrum" {
+  name   = "${local.name_prefix}-redshift-spectrum-read-silver"
+  role   = aws_iam_role.redshift_spectrum.id
+  policy = data.aws_iam_policy_document.redshift_spectrum.json
+}

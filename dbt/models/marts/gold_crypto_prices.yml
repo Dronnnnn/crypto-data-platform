@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: gold_latest_crypto_price
+    description: One latest technically observed price per source and symbol.
+    columns:
+      - name: latest_price_key
+        tests:
+          - not_null
+          - unique
+      - name: record_id
+        tests:
+          - not_null
+      - name: latest_price
+        tests:
+          - not_null
+          - positive_value
+      - name: observed_at
+        tests:
+          - not_null
+
+  - name: gold_daily_crypto_price_summary
+    description: Daily minimum, maximum, average and count of validated prices.
+    columns:
+      - name: daily_price_key
+        tests:
+          - not_null
+          - unique
+      - name: source
+        tests:
+          - not_null
+      - name: ingest_date
+        tests:
+          - not_null
+      - name: symbol
+        tests:
+          - not_null
+      - name: price_record_count
+        tests:
+          - not_null

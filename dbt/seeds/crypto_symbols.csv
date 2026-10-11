@@ -1,0 +1,4 @@
+symbol,base_asset,quote_asset,asset_name,is_active
+BTCUSDT,BTC,USDT,Bitcoin,true
+ETHUSDT,ETH,USDT,Ethereum,true
+SOLUSDT,SOL,USDT,Solana,true

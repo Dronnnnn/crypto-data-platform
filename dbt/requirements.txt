@@ -1,0 +1,2 @@
+# dbt-redshift installs a compatible dbt-core version.
+dbt-redshift>=1.9,<2.0

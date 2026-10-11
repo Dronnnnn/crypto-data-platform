@@ -11,6 +11,8 @@ Cloud-based data engineering project built on AWS.
 - Apache Spark
 - AWS Glue Data Catalog
 - Amazon Athena
+- Amazon Redshift Serverless
+- dbt Core with dbt-redshift
 
 ## Architecture
 
@@ -24,6 +26,9 @@ Binance API
   -> Spark Silver (canonical Parquet)
   -> Glue Data Catalog
   -> Athena
+  -> Redshift Spectrum
+  -> dbt
+  -> Redshift Gold marts
 ```
 
 ## Development
@@ -236,3 +241,175 @@ partition automatically.
 Athena is billed by the amount of data scanned. Parquet, selecting only needed columns,
 and always filtering by `source` and `ingest_date` keep queries faster and cheaper. The
 preview and summary SQL files demonstrate this pattern.
+
+## Redshift Serverless, Spectrum, and dbt
+
+This stage adds a warehouse serving layer without moving Silver Parquet files out of S3:
+
+```text
+S3 Silver Parquet
+  -> Glue Data Catalog table
+  -> Redshift Spectrum external schema
+  -> dbt staging and intermediate models
+  -> Redshift Gold tables
+```
+
+### Components and responsibilities
+
+- A **Redshift Serverless namespace** is the logical warehouse container. It owns the
+  initial database (`crypto_warehouse`), users, metadata, and the IAM role attached to
+  the warehouse.
+- A **Redshift Serverless workgroup** provides the compute capacity and SQL endpoint.
+  It is the serverless replacement for manually operating a Redshift cluster.
+- **Redshift Spectrum** is Redshift's ability to query external S3 data. The schema
+  `spectrum_silver` references the Glue database `crypto_data_lake`; it does not copy
+  `silver_crypto_prices` into Redshift.
+- A **dbt source** is an existing input relation that dbt reads but does not build. In
+  this project it is `spectrum_silver.silver_crypto_prices`.
+- A **dbt model** is version-controlled SQL that dbt builds. `staging` standardizes the
+  source into a regular Redshift table, `intermediate` keeps reusable calculations, and
+  `marts` contains Gold tables intended for analytics consumers. The staging model must
+  be a table rather than a view because Redshift does not allow ordinary views to select
+  directly from Spectrum external tables.
+
+The `gold_latest_crypto_price` mart uses `bronze_loaded_at` as the best currently
+available technical ordering field. It is not an exchange event time: records in one
+Spark batch can share it, so `record_id` is used as a deterministic tie-breaker. A future
+source that provides a genuine event timestamp should add `event_time` to the Silver
+contract and use it as the primary ordering field.
+
+No dbt snapshot is included yet. A snapshot models slowly changing state; a stream of
+individual crypto price observations is not such an entity. A future reference dataset
+(for example, symbol metadata with changing status) is a better first snapshot target.
+
+### Redshift networking and IAM
+
+Terraform discovers the account's default VPC and default subnets when it creates the
+workgroup. The default is deliberately private:
+
+```hcl
+redshift_publicly_accessible = false
+```
+
+No inbound security-group rule is created in this mode. To connect dbt from a laptop,
+use a secure private path such as VPN, an SSM-managed EC2 instance, or a CI runner in the
+same VPC. Public access is a deliberate development-only opt-in: set
+`redshift_publicly_accessible = true` and provide exactly one trusted public client CIDR
+in `redshift_allowed_cidr`; never use `0.0.0.0/0`.
+
+Terraform creates a separate **Redshift Spectrum IAM role**. It can read only
+`silver/*` from the project bucket and the required Glue metadata. This is different from
+the Athena analyst policy: the analyst policy represents a person or BI client, while the
+Spectrum role is assumed by the Redshift service while it reads S3 on behalf of SQL.
+
+### Deploying Redshift infrastructure
+
+From the repository root:
+
+```powershell
+cd terraform
+terraform fmt -check
+terraform validate
+terraform plan
+```
+
+`terraform plan` reads the default VPC and subnets in the configured AWS region. It must
+show the namespace, workgroup, security group, Spectrum IAM role and its policy before
+you apply it. Creating a Serverless workgroup can incur Redshift charges:
+
+```powershell
+terraform apply
+```
+
+After apply, obtain the endpoint and database name without exposing a password:
+
+```powershell
+terraform output redshift_endpoint_host
+terraform output redshift_endpoint_port
+terraform output redshift_database_name
+terraform output redshift_spectrum_role_arn
+```
+
+AWS manages the admin password in Secrets Manager because the namespace uses
+`manage_admin_password = true`. Retrieve it only when configuring a private local dbt
+environment; do not put it in Git, a Terraform output, or `profiles.yml`.
+
+### Spectrum setup and verification
+
+Connect to `crypto_warehouse` using Redshift Query Editor v2 or a network path allowed by
+the workgroup security group. Run these version-controlled SQL files in order:
+
+```text
+sql/redshift/01_create_external_schema.sql
+sql/redshift/02_preview_spectrum_silver.sql
+```
+
+The first statement uses `IAM_ROLE default`. Terraform already attaches the Spectrum role
+as the namespace default role, so an ARN does not need to be copied into SQL. The preview
+filters by `source` and `ingest_date`, preserving partition pruning while Spectrum reads
+the external Parquet table.
+
+### dbt project
+
+The dbt project is in [`dbt/`](dbt). Install the adapter in a dedicated local virtual
+environment:
+
+```powershell
+python -m venv .venv-dbt
+.\.venv-dbt\Scripts\Activate.ps1
+pip install -r dbt\requirements.txt
+Copy-Item dbt\profiles.yml.example dbt\profiles.yml
+```
+
+Set connection values in your shell environment, not in Git:
+
+```text
+DBT_REDSHIFT_HOST
+DBT_REDSHIFT_PORT
+DBT_REDSHIFT_DBNAME
+DBT_REDSHIFT_USER
+DBT_REDSHIFT_PASSWORD
+DBT_REDSHIFT_SCHEMA
+```
+
+dbt reads operating-system environment variables; it does not load the project's `.env`
+file automatically. In PowerShell, export the values for the current terminal session
+after retrieving the endpoint and the Secrets Manager password through an approved secure
+path:
+
+```powershell
+$env:DBT_REDSHIFT_HOST = "<Redshift endpoint from Terraform output>"
+$env:DBT_REDSHIFT_PORT = "5439"
+$env:DBT_REDSHIFT_DBNAME = "crypto_warehouse"
+$env:DBT_REDSHIFT_USER = "adminuser"
+$env:DBT_REDSHIFT_PASSWORD = "<password from AWS Secrets Manager>"
+$env:DBT_REDSHIFT_SCHEMA = "analytics"
+```
+
+Run dbt from the `dbt` directory. `--profiles-dir .` makes dbt use the local untracked
+profile template you copied above.
+
+```powershell
+cd dbt
+dbt debug --profiles-dir .
+dbt seed --profiles-dir .
+dbt run --profiles-dir .
+dbt test --profiles-dir .
+dbt docs generate --profiles-dir .
+dbt docs serve --profiles-dir .
+```
+
+`dbt seed`, `dbt run`, and `dbt test` execute SQL in Redshift. Source tests can make
+Spectrum scan S3, while models build Redshift views and Gold tables; all three can incur
+cost. `dbt docs generate` reads project metadata and warehouse metadata, and `dbt docs
+serve` starts only a local documentation server.
+
+After dbt completes, verify Gold tables with:
+
+```text
+sql/redshift/03_preview_gold_marts.sql
+```
+
+To remove infrastructure later, inspect the deletion plan before using `terraform
+destroy`. It is destructive and includes the existing Terraform-managed data lake bucket;
+never run it while the platform data must be retained.

@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-dbt/
 .pytest_cache/
 .ruff_cache/
 .coverage
@@ -19,6 +20,12 @@ __pycache__/
 *.tfstate.*
 crash.log
 *.tfplan
+
+# dbt local connection and generated artifacts
+dbt/profiles.yml
+dbt/.user.yml
+dbt/target/
+dbt/logs/
 
 # Runtime artifacts
 airflow/logs/

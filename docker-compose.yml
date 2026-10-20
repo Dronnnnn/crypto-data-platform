@@ -63,11 +63,12 @@ x-airflow-common:
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
 #    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://airflow:airflow@postgres/airflow
 #    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+    AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY:?Run scripts/bootstrap.py first}
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
-    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:-airflow_jwt_secret}
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET:?Run scripts/bootstrap.py first}
+    AIRFLOW__API__SECRET_KEY: ${AIRFLOW__API__SECRET_KEY:?Run scripts/bootstrap.py first}
     AIRFLOW__API_AUTH__JWT_ISSUER: ${AIRFLOW__API_AUTH__JWT_ISSUER:-airflow}
     AIRFLOW_CONN_SPARK_DEFAULT: spark://spark-master:7077
     AWS_PROFILE: default
@@ -89,7 +90,7 @@ x-airflow-common:
     - ./airflow/config:/opt/airflow/config
     - ./airflow/plugins:/opt/airflow/plugins
     - ./:/opt/airflow/project
-    - ${USERPROFILE}/.aws:/home/airflow/.aws:ro
+    - ${AWS_CREDENTIALS_DIR:-./.aws-runtime}:/home/airflow/.aws:ro
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -132,7 +133,7 @@ services:
     <<: *airflow-common
     command: api-server
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
       interval: 30s
@@ -301,7 +302,7 @@ services:
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
-      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:?Run scripts/bootstrap.py first}
       _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
 
@@ -331,8 +332,8 @@ services:
       SPARK_MASTER_PORT: 7077
       SPARK_MASTER_WEBUI_PORT: 8080
     ports:
-      - "7077:7077"
-      - "8081:8080"
+      - "127.0.0.1:7077:7077"
+      - "127.0.0.1:8081:8080"
     restart: unless-stopped
 
   spark-worker:
@@ -348,7 +349,7 @@ services:
       AWS_PROFILE: default
       AWS_SHARED_CREDENTIALS_FILE: /home/spark/.aws/credentials
     volumes:
-      - ${USERPROFILE}/.aws:/home/spark/.aws:ro
+      - ${AWS_CREDENTIALS_DIR:-./.aws-runtime}:/home/spark/.aws:ro
     depends_on:
       - spark-master
     restart: unless-stopped
@@ -363,6 +364,7 @@ services:
       - ./:/workspace
     command:
       - -q
+      - --tb=short
       - tests/test_bronze_binance.py
       - tests/test_bronze_to_silver.py
 

@@ -1,7 +1,6 @@
 from datetime import datetime
 
-from airflow.decorators import dag, task
-from airflow.models import Variable
+from airflow.sdk import Variable, dag, task
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.providers.smtp.notifications.smtp import send_smtp_notification
 
@@ -31,7 +30,7 @@ failure_callback = send_smtp_notification(
 default_args = {
     "owner": "data-engineering",
     "retries": 0,
-    "on_failure_callback": failure_callback,
+    "on_failure_callback": failure_callback if any(EMAILS) else None,
 }
 
 
@@ -40,6 +39,7 @@ default_args = {
     start_date=datetime(2026, 1, 1),
     schedule="@hourly",
     catchup=False,
+    max_active_runs=1,
     default_args=default_args,
     tags=["crypto", "binance"],
 )

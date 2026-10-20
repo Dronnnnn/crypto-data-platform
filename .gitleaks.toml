@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+# Exclude installed dependencies and generated scanner output, not local .env.
+[[allowlists]]
+description = "Dependency caches and generated output"
+paths = ['''(^|[/\\])\.venv[^/\\]*[/\\]''', '''(^|[/\\])\.codex-build[/\\]''', '''(^|[/\\])\.terraform[/\\]''', '''(^|[/\\])dbt[/\\](target|logs|dbt_packages)[/\\]''']

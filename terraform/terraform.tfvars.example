@@ -12,8 +12,8 @@ glue_database_name              = "crypto_data_lake"
 silver_crypto_prices_table_name = "silver_crypto_prices"
 athena_workgroup_name           = "crypto-data-platform"
 
-# Redshift Serverless stays private by default. Do not set this to true until
-# a narrowly scoped client CIDR and a deliberate local connectivity plan exist.
+# Redshift Serverless stays private by default. The README walkthrough creates
+# an ignored reviewer.auto.tfvars override with public TLS access from one /32.
 redshift_namespace_name      = "crypto-data-platform"
 redshift_workgroup_name      = "crypto-data-platform"
 redshift_database_name       = "crypto_warehouse"

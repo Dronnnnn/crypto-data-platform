@@ -87,4 +87,13 @@ variable "redshift_allowed_cidr" {
     condition     = !var.redshift_publicly_accessible || var.redshift_allowed_cidr != null
     error_message = "Set redshift_allowed_cidr when redshift_publicly_accessible is true."
   }
+
+  validation {
+    condition = var.redshift_allowed_cidr == null ? true : (
+      can(cidrnetmask(var.redshift_allowed_cidr)) &&
+      can(regex("/32$", var.redshift_allowed_cidr)) &&
+      var.redshift_allowed_cidr != "0.0.0.0/32"
+    )
+    error_message = "Only a single trusted IPv4 client address (/32) is allowed; broad networks are forbidden."
+  }
 }

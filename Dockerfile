@@ -1,4 +1,4 @@
-FROM apache/airflow:3.3.0
+FROM apache/airflow:3.3.0-python3.11
 
 USER root
 
@@ -10,5 +10,6 @@ RUN apt-get update \
 USER airflow
 
 COPY requirements-airflow.txt .
+COPY constraints-airflow.txt .
 
-RUN pip install --no-cache-dir -r requirements-airflow.txt
+RUN pip install --no-cache-dir -r requirements-airflow.txt --constraint constraints-airflow.txt

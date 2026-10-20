@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 .venv/
 .venv-dbt/
+.venv*/
+venv/
 .pytest_cache/
 .ruff_cache/
 .coverage
@@ -13,6 +15,9 @@ __pycache__/
 
 # Environment
 .env
+.env.*
+!.env.example
+.aws-runtime/
 
 # Terraform
 **/.terraform/*
@@ -20,18 +25,27 @@ __pycache__/
 *.tfstate.*
 crash.log
 *.tfplan
+terraform/terraform.tfvars
+terraform/*.auto.tfvars
+*.tfvars
+*.tfvars.json
 
 # dbt local connection and generated artifacts
 dbt/profiles.yml
 dbt/.user.yml
 dbt/target/
 dbt/logs/
+dbt/dbt_packages/
 
 # Runtime artifacts
 airflow/logs/
 logs/
 data/raw/
 *.egg-info/
+.codex-build/
+output/
+build/
+dist/
 
 # OS
 .DS_Store

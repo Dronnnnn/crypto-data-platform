@@ -115,6 +115,16 @@ def write_partitioned_parquet(dataframe: DataFrame, destination: str) -> None:
     )
 
 
+def read_raw(spark: SparkSession, path: str) -> DataFrame:
+    """Read JSON payload columns without Hive partition columns replacing symbol."""
+    return (
+        spark.read.option("recursiveFileLookup", "true").option("mode", "PERMISSIVE")
+        .option("columnNameOfCorruptRecord", "_corrupt_record")
+        .schema(RAW_SCHEMA)
+        .json(path)
+    )
+
+
 def main() -> None:
     bucket = os.environ["S3_BUCKET"]
     raw_prefix = os.getenv("S3_RAW_PREFIX", "raw")
@@ -125,12 +135,7 @@ def main() -> None:
     spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
     spark.conf.set("spark.sql.sources.partitionDiscovery.enabled", "false")
 
-    raw = (
-        spark.read.option("mode", "PERMISSIVE")
-        .option("columnNameOfCorruptRecord", "_corrupt_record")
-        .schema(RAW_SCHEMA)
-        .json(s3a_path(bucket, raw_prefix))
-    )
+    raw = read_raw(spark, s3a_path(bucket, raw_prefix))
     bronze, quarantine = transform_raw_to_bronze(raw)
 
     write_partitioned_parquet(bronze, s3a_path(bucket, f"{bronze_prefix}/crypto_prices"))

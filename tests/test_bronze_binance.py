@@ -6,7 +6,7 @@ pytest.importorskip("pyspark")
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StringType, StructField, StructType
 
-from spark.jobs.bronze_binance import transform_raw_to_bronze
+from spark.jobs.bronze_binance import read_raw, transform_raw_to_bronze
 
 RAW_SCHEMA = StructType(
     [
@@ -76,3 +76,14 @@ def test_symbol_partition_mismatch_is_rejected(spark: SparkSession) -> None:
 
     assert bronze.count() == 0
     assert quarantine.collect()[0].quarantine_reason == "symbol_partition_mismatch"
+
+
+def test_json_symbol_is_not_replaced_by_partition_column(spark, tmp_path):
+    directory = tmp_path / "source=binance" / "symbol=BTCUSDT" / "ingest_date=2026-07-28"
+    directory.mkdir(parents=True)
+    (directory / "price.json").write_text('{"symbol":"ETHUSDT","price":"3000"}')
+    raw = read_raw(spark, str(tmp_path))
+    assert raw.select("symbol").first().symbol == "ETHUSDT"
+    bronze, quarantine = transform_raw_to_bronze(raw)
+    assert bronze.count() == 0
+    assert quarantine.first().quarantine_reason == "symbol_partition_mismatch"

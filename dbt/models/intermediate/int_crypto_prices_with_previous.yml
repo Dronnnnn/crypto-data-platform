@@ -1,0 +1,8 @@
+version: 2
+models:
+  - name: int_crypto_prices_with_previous
+    description: One observation per record_id with the previous technical observation per source/symbol.
+    tests: [not_empty]
+    columns:
+      - name: record_id
+        tests: [not_null, unique]

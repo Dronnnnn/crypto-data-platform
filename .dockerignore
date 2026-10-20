@@ -1,0 +1,17 @@
+.git
+.venv*
+.env*
+.aws*
+.codex-build
+**/__pycache__
+**/*.egg-info
+**/.terraform
+**/*.tfstate*
+**/terraform.tfvars
+**/*.auto.tfvars
+dbt/profiles.yml
+dbt/target
+dbt/logs
+dbt/dbt_packages
+airflow/logs
+output

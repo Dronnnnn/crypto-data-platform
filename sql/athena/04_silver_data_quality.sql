@@ -33,3 +33,8 @@ UNION ALL
 SELECT * FROM null_required_fields
 UNION ALL
 SELECT * FROM duplicates;
+
+-- Must be > 0 for the UTC date selected for this review.
+SELECT COUNT(*) AS run_date_rows
+FROM crypto_data_lake.silver_crypto_prices
+WHERE source = 'binance' AND ingest_date = DATE '${RUN_DATE}';

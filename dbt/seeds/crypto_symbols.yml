@@ -1,0 +1,14 @@
+version: 2
+seeds:
+  - name: crypto_symbols
+    description: Curated symbol/base/quote/name lookup; unknown symbols fail the staging relationship test.
+    tests: [not_empty]
+    columns:
+      - name: symbol
+        tests: [not_null, unique]
+      - name: base_asset
+        tests: [not_null]
+      - name: quote_asset
+        tests: [not_null]
+      - name: asset_name
+        tests: [not_null]

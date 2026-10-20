@@ -2,19 +2,19 @@
 name = "crypto-data-platform"
 version = "0.1.0"
 description = "AWS Data Engineering Pet Project"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 
 dependencies = [
-    "boto3>=1.43",
-    "requests>=2.34",
-    "python-dotenv>=1.2",
-    "pydantic-settings>=2.14",
+    "boto3==1.43.0",
+    "requests==2.34.2",
+    "python-dotenv==1.2.2",
+    "pydantic-settings==2.14.2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pyspark==3.5.6",
-    "pytest>=8.0",
+    "pytest==9.1.1",
 ]
 
 [tool.pytest.ini_options]
@@ -32,7 +32,7 @@ target-version = "py311"
 select = ["E", "F", "I", "B"]
 
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools==80.3.1"]
 build-backend = "setuptools.build_meta"
 
 

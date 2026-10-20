@@ -3,6 +3,7 @@ version: 2
 models:
   - name: gold_latest_crypto_price
     description: One latest technically observed price per source and symbol.
+    tests: [not_empty]
     columns:
       - name: latest_price_key
         tests:
@@ -21,6 +22,7 @@ models:
 
   - name: gold_daily_crypto_price_summary
     description: Daily minimum, maximum, average and count of validated prices.
+    tests: [not_empty]
     columns:
       - name: daily_price_key
         tests:
@@ -38,3 +40,10 @@ models:
       - name: price_record_count
         tests:
           - not_null
+          - positive_value
+      - name: min_price
+        tests: [not_null, positive_value]
+      - name: max_price
+        tests: [not_null, positive_value]
+      - name: average_price
+        tests: [not_null, positive_value]

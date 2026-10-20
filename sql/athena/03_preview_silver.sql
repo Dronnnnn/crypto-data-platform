@@ -10,5 +10,5 @@ SELECT
     silver_loaded_at
 FROM crypto_data_lake.silver_crypto_prices
 WHERE source = 'binance'
-  AND ingest_date = DATE '2026-07-29'
+  AND ingest_date = DATE '${RUN_DATE}'
 ORDER BY silver_loaded_at DESC;

@@ -7,8 +7,8 @@ crypto_data_platform:
       port: "{{ env_var('DBT_REDSHIFT_PORT', '5439') | int }}"
       dbname: "{{ env_var('DBT_REDSHIFT_DBNAME', 'crypto_warehouse') }}"
       user: "{{ env_var('DBT_REDSHIFT_USER') }}"
-      password: "{{ env_var('DBT_REDSHIFT_PASSWORD') }}"
+      password: "{{ env_var('DBT_ENV_SECRET_REDSHIFT_PASSWORD') }}"
       schema: "{{ env_var('DBT_REDSHIFT_SCHEMA', 'analytics') }}"
       threads: 2
       connect_timeout: 10
-      sslmode: require
+      sslmode: verify-full

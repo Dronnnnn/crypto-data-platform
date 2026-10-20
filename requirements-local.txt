@@ -1,0 +1,2 @@
+-c constraints-airflow.txt
+-e .[dev]

@@ -10,6 +10,6 @@ SELECT
     COUNT(*) AS record_count
 FROM crypto_data_lake.silver_crypto_prices
 WHERE source = 'binance'
-  AND ingest_date BETWEEN DATE '2026-07-27' AND DATE '2026-07-29'
+  AND ingest_date = DATE '${RUN_DATE}'
 GROUP BY source, ingest_date, symbol
 ORDER BY ingest_date, symbol;

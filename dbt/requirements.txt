@@ -1,2 +1,3 @@
-# dbt-redshift installs a compatible dbt-core version.
-dbt-redshift>=1.9,<2.0
+# Direct versions plus the resolved transitive environment in requirements.lock.txt.
+dbt-core==1.12.5
+dbt-redshift==1.11.1

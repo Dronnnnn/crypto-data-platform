@@ -44,8 +44,17 @@ output "redshift_workgroup_name" {
 }
 
 output "redshift_endpoint_host" {
-  description = "Private Redshift Serverless endpoint hostname"
+  description = "Redshift Serverless endpoint hostname"
   value       = aws_redshiftserverless_workgroup.warehouse.endpoint[0].address
+}
+
+output "redshift_namespace_name" {
+  value = aws_redshiftserverless_namespace.warehouse.namespace_name
+}
+
+output "catalog_bucket_name" {
+  description = "Bucket actually used by Glue/Spectrum and the ingestion walkthrough"
+  value       = local.data_lake_bucket_name
 }
 
 output "redshift_endpoint_port" {

@@ -10,5 +10,5 @@ SELECT
     silver_loaded_at
 FROM spectrum_silver.silver_crypto_prices
 WHERE source = 'binance'
-  AND ingest_date = DATE '2026-07-29'
+  AND ingest_date = DATE '${RUN_DATE}'
 ORDER BY bronze_loaded_at, record_id;

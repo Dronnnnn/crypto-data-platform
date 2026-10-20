@@ -9,6 +9,7 @@ sources:
     tables:
       - name: silver_crypto_prices
         description: One validated Binance price payload per stable record_id.
+        tests: [not_empty]
         columns:
           - name: record_id
             description: SHA-256 technical identifier of the landed Raw object.
@@ -22,3 +23,11 @@ sources:
             tests:
               - not_null
               - positive_value
+          - name: source
+            tests: [not_null]
+          - name: ingest_date
+            tests: [not_null]
+          - name: bronze_loaded_at
+            tests: [not_null]
+          - name: silver_loaded_at
+            tests: [not_null]

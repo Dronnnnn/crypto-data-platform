@@ -1,16 +1,16 @@
 from datetime import datetime
 
-from airflow.sdk import Variable, dag, task
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 from airflow.providers.smtp.notifications.smtp import send_smtp_notification
+from airflow.sdk import Variable, dag, task
 
 from crypto_data_platform.common.config import settings
 from crypto_data_platform.common.constants import BINANCE_SOURCE
 from crypto_data_platform.ingestion.api_client import fetch_price
 from crypto_data_platform.ingestion.raw_storage import upload_raw_json
 
-SYMBOL = Variable.get("SYMBOL", default_var="BTCUSDT")
-EMAILS = Variable.get("EMAILS", default_var="").split(",")
+SYMBOL = Variable.get("SYMBOL", default="BTCUSDT")
+EMAILS = Variable.get("EMAILS", default="").split(",")
 
 failure_callback = send_smtp_notification(
     to=EMAILS,

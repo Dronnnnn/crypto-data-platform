@@ -5,7 +5,7 @@ WITH ranked_prices AS (
         *,
         ROW_NUMBER() OVER (
             PARTITION BY source, symbol
-            ORDER BY bronze_loaded_at DESC, record_id DESC
+            ORDER BY ingest_date DESC, bronze_loaded_at DESC, record_id DESC
         ) AS price_rank
     FROM {{ ref('int_crypto_prices_with_previous') }}
 )

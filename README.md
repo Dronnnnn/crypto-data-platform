@@ -26,7 +26,8 @@ roles. Broad deployment access is a sandbox convenience, not a runtime policy.
 Ingestion needs bucket List/GetLocation and Get/PutObject on raw/bronze/silver/quarantine.
 Querying needs Athena Start/Get/StopQueryExecution/GetQueryResults, Glue metadata read,
 Glue CreatePartition/BatchCreatePartition for MSCK, and S3 Silver/results access.
-Password loading needs redshift-serverless:GetNamespace and secretsmanager:GetSecretValue
+Password loading needs redshift-serverless:GetNamespace, redshift-serverless:GetWorkgroup
+(for discovery from older state), and secretsmanager:GetSecretValue
 on the managed secret (kms:Decrypt for a customer KMS key). The Terraform analyst policy
 is unattached and does not grant partition creation. Spectrum has its own Silver/Glue role.
 
@@ -102,6 +103,18 @@ The exporter freezes the host session into ignored `.aws-runtime/credentials`, m
 read-only at each container user's `.aws` for boto3 and Java S3A. Refresh SSO and re-run
 the exporter before session expiration, then recreate containers. Do not share this directory.
 
+For an existing deployment whose older state lacks `catalog_bucket_name`, resolve the
+actual catalog bucket without applying infrastructure just to add outputs:
+
+```powershell
+$glueDb = terraform -chdir=terraform output -raw glue_database_name
+$glueTable = terraform -chdir=terraform output -raw silver_crypto_prices_table_name
+$silverLocation = aws glue get-table --database-name $glueDb --name $glueTable --query Table.StorageDescriptor.Location --output text
+if ($LASTEXITCODE -ne 0) { throw 'Cannot read catalog location' }
+$bucket = ([Uri]$silverLocation).Host
+.\.venv\Scripts\python.exe scripts/bootstrap.py --bucket $bucket
+```
+
 ### 3. Ingest and build Silver
 
 ```powershell
@@ -116,7 +129,7 @@ $runDate = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd')
 $runId = 'review_' + (Get-Date).ToUniversalTime().ToString('yyyyMMdd_HHmmss')
 docker compose exec airflow-scheduler airflow dags unpause binance_ingestion
 docker compose exec airflow-scheduler airflow dags trigger --run-id $runId binance_ingestion
-docker compose exec airflow-scheduler airflow dags list-runs -d binance_ingestion
+docker compose exec airflow-scheduler airflow dags list-runs binance_ingestion
 ```
 
 Expected: init exits 0; Airflow becomes healthy, Spark runs, no import errors. Repeat
@@ -193,7 +206,7 @@ $env:DBT_SEND_ANONYMOUS_USAGE_STATS = 'false'
 .\.venv-dbt\Scripts\dbt.exe docs serve --project-dir dbt --profiles-dir dbt --port 8082
 ```
 
-Expected: successful debug connection, seed loaded, 4 models built, all 54 tests pass,
+Expected: successful debug connection, seed loaded, 4 models built, all 55 tests pass,
 catalog/manifest generated. Both Gold tables and selected-date counts must be nonempty;
 observations must equal Silver's count for the date. Schemas are analytics_staging,
 analytics_intermediate, analytics_gold and analytics_reference: dbt appends custom schemas
@@ -218,9 +231,12 @@ counts detect silently filtered rows. Pause ingestion to keep inputs stable duri
 | gold_latest_crypto_price | One source/symbol, MD5 composite key | ROW_NUMBER selects latest technical observation; consumer table |
 | gold_daily_crypto_price_summary | One source/date/symbol, MD5 composite key | Consumer table with count/min/max/average |
 
-bronze_loaded_at is **processing time**, not exchange event time. Batch timestamps may
-tie; record_id creates deterministic order, not proof of exchange chronology. Rebuilding
-Bronze changes technical timestamps. Price changes compare technical observations.
+Ordering uses ingest_date first, then bronze_loaded_at and record_id. This prevents a
+full rebuild from selecting an older ingestion day as latest. bronze_loaded_at is
+**processing time**, not exchange event time. Batch timestamps may tie; record_id creates
+deterministic order within a day, not proof of exchange chronology or which payload was
+landed last that day. Rebuilding Bronze changes technical timestamps. Price changes
+compare technically ordered observations, not guaranteed consecutive exchange ticks.
 Full rebuilds suit this dataset's size; incremental/snapshots are not added for checklist
 coverage. Snapshots suit changing entity state rather than individual price observations.
 Glue is metadata, Athena explores Parquet, Spectrum connects lake and warehouse, dbt owns
@@ -252,7 +268,8 @@ Real acceptance requires the cloud steps and nonempty results. This offline bloc
 replaces connection variables; re-run connect_redshift.ps1 before real SQL. Directory
 scanning intentionally includes ignored `.env`: local secrets may be found without
 being Git leaks. Dependency caches/generated output are excluded. Do not print findings'
-values. See [security cleanup](docs/SECURITY.md) and [audit evidence](docs/AUDIT.md).
+values. See [security cleanup](docs/SECURITY.md), [audit evidence](docs/AUDIT.md), and the
+[executed end-to-end check](docs/E2E_CHECK_2026-10-27.md).
 
 Stop services with `docker compose down` (no -v, preserving PostgreSQL data). AWS remains
 billable separately. To retire the sandbox, preserve necessary data/state, inspect

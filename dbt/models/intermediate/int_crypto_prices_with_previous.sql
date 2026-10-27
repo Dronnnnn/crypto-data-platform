@@ -5,7 +5,8 @@ WITH priced AS (
         *,
         LAG(price) OVER (
             PARTITION BY source, symbol
-            ORDER BY bronze_loaded_at, record_id
+            -- Full rebuilds can assign the same processing timestamp to all days.
+            ORDER BY ingest_date, bronze_loaded_at, record_id
         ) AS previous_price
     FROM {{ ref('stg_crypto_prices') }}
 )

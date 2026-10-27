@@ -1,7 +1,8 @@
 WITH ranked AS (
     SELECT source, symbol, record_id, price,
            ROW_NUMBER() OVER (
-               PARTITION BY source, symbol ORDER BY bronze_loaded_at DESC, record_id DESC
+               PARTITION BY source, symbol
+               ORDER BY ingest_date DESC, bronze_loaded_at DESC, record_id DESC
            ) AS rn
     FROM {{ ref('stg_crypto_prices') }}
 ), expected AS (

@@ -284,9 +284,9 @@ services:
         echo
         ls -la /opt/airflow/{logs,dags,plugins,config}
         echo
-        echo "Change ownership of files in /opt/airflow to ${AIRFLOW_UID:-50000}:0"
+        echo "Change ownership of the Airflow root to ${AIRFLOW_UID:-50000}:0"
         echo
-        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/
+        chown "${AIRFLOW_UID:-50000}:0" /opt/airflow/
         echo
         echo "Change ownership of files in shared volumes to ${AIRFLOW_UID:-50000}:0"
         echo

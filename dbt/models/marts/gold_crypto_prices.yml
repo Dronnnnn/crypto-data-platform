@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: gold_latest_crypto_price
-    description: One latest technically observed price per source and symbol.
+    description: One observation from the newest ingestion day per source/symbol, ordered by processing time and record_id within that day.
     tests: [not_empty]
     columns:
       - name: latest_price_key

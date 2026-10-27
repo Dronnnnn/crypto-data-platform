@@ -1,5 +1,10 @@
 # dbt pet-project audit — 2026-10-20
 
+Follow-up: the real existing-deployment data flow was executed on 2026-10-27. See
+[executed end-to-end check](E2E_CHECK_2026-10-27.md) for runtime fixes, actual warehouse
+results and all 55 final dbt tests. The earlier offline-only limitations below describe
+the original October 20 audit.
+
 Scope: the six criteria supplied in the pasted request. No Material assignment link
 was available; no additional rubric is inferred. AGENTS.md was not found in the repo
 or its parent directories. Existing user changes were inspected before editing.

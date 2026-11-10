@@ -6,5 +6,5 @@
 CREATE EXTERNAL SCHEMA IF NOT EXISTS spectrum_silver
 FROM DATA CATALOG
 DATABASE 'crypto_data_lake'
-REGION 'ap-southeast-1'
+REGION '${AWS_REGION}'
 IAM_ROLE default;

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bucket", help="Bucket from terraform output -raw catalog_bucket_name")
+    parser.add_argument("--region", help="AWS Region selected for this deployment")
     args = parser.parse_args()
     path = ROOT / ".env"
     text = (
@@ -35,6 +36,9 @@ def main():
     if args.bucket:
         lines = [line for line in lines if not line.startswith("S3_BUCKET=")]
         lines.append("S3_BUCKET=" + args.bucket)
+    if args.region:
+        lines = [line for line in lines if not line.startswith("AWS_REGION=")]
+        lines.append("AWS_REGION=" + args.region)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     for directory in ("airflow/logs", "airflow/plugins", ".aws-runtime"):
         (ROOT / directory).mkdir(parents=True, exist_ok=True)

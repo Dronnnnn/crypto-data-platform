@@ -1,3 +1,8 @@
+output "aws_region" {
+  description = "Region used by this deployment and its SQL/connection helpers"
+  value       = var.aws_region
+}
+
 output "bucket_name" {
   description = "S3 Bucket name"
   value       = aws_s3_bucket.data_lake.bucket

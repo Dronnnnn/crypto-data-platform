@@ -1,3 +1,14 @@
+variable "deployment_name" {
+  description = "Unique deployment prefix, including account-global IAM resource names"
+  type        = string
+  default     = "crypto-data-platform"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9-]{1,30}[a-z0-9]$", var.deployment_name))
+    error_message = "Use 3-32 lowercase letters, digits or hyphens; start with a letter and end with a letter or digit."
+  }
+}
+
 variable "aws_region" {
   description = "AWS Region"
   type        = string
@@ -69,6 +80,18 @@ variable "redshift_port" {
   description = "TCP port used by the Redshift Serverless endpoint"
   type        = number
   default     = 5439
+}
+
+variable "redshift_max_capacity" {
+  description = "Optional compute scaling ceiling in RPUs for an isolated review"
+  type        = number
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.redshift_max_capacity == null ? true : var.redshift_max_capacity >= var.redshift_base_capacity
+    error_message = "Maximum capacity must be at least the base capacity."
+  }
 }
 
 variable "redshift_publicly_accessible" {

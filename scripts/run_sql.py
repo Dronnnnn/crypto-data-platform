@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 import time
 from datetime import date
 from pathlib import Path
@@ -9,9 +10,13 @@ from pathlib import Path
 import boto3
 
 
-def load_statements(path, run_date):
+def load_statements(path, run_date, *, region=None):
     """Load repository SQL (standalone -- comments, no procedure bodies)."""
     sql = path.read_text(encoding="utf-8").replace("${RUN_DATE}", run_date.isoformat())
+    if "${AWS_REGION}" in sql:
+        if not region or not re.fullmatch(r"[a-z]{2}(?:-[a-z]+)+-[0-9]+", region):
+            raise ValueError("Set AWS_REGION to a valid deployment region before running SQL")
+        sql = sql.replace("${AWS_REGION}", region)
     # Comments can contain semicolons; they must not become separate statements.
     sql = "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--"))
     return [statement.strip() for statement in sql.split(";") if statement.strip()]
@@ -23,9 +28,12 @@ def main():
     parser.add_argument("--file", type=Path, required=True)
     parser.add_argument("--date", type=date.fromisoformat, required=True)
     args = parser.parse_args()
-    statements = load_statements(args.file, args.date)
+    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+    statements = load_statements(args.file, args.date, region=region)
     if args.engine == "athena":
-        client = boto3.client("athena", region_name=os.environ.get("AWS_REGION", "ap-southeast-1"))
+        if not region:
+            raise ValueError("Set AWS_REGION before running Athena queries")
+        client = boto3.client("athena", region_name=region)
         for statement in statements:
             query_id = client.start_query_execution(
                 QueryString=statement, WorkGroup=os.environ["ATHENA_WORKGROUP"]

@@ -16,8 +16,11 @@ are pinned in `dbt/requirements.lock.txt`; Airflow/local Python use checked-in u
 constraints and exact direct requirements. Docker tags and OS packages are not byte-identical locks.
 
 Cloud steps below create **billable AWS resources**. Obtain authorization before
-running them. Local checks at the end require no AWS. Use `ap-southeast-1` and keep
-the default database/table names because example SQL references those names.
+running them. Local checks at the end require no AWS. This walkthrough creates an
+isolated deployment in `eu-north-1`; keep the default Glue database/table names
+because example SQL references those names. A separate AWS account is optional:
+use a fresh clone/state and a unique deployment prefix for account-global IAM names.
+The selected region must support Redshift Serverless and the VPC requirements below.
 
 Use a dedicated sandbox deployment role with AdministratorAccess, or an administrator
 provided equivalent covering S3, Glue, Athena, IAM role/policy creation and PassRole,
@@ -39,7 +42,8 @@ does not silently modify shared VPC routing.
 
 ## Clean-clone walkthrough
 
-Clone your repository URL (`git clone <repository-url>`), then `Set-Location crypto-data-platform`.
+Run `git clone https://github.com/Dronnnnn/crypto-data-platform.git`, then
+`Set-Location crypto-data-platform`. Use a fresh clone with no Terraform state.
 Run every block below in the **same PowerShell terminal**, from the repository root.
 Check native command exit codes (`$LASTEXITCODE`); stop on any failure.
 
@@ -51,20 +55,28 @@ docker info
 docker compose version
 terraform version
 aws --version
-aws configure sso --profile crypto-review
-aws sso login --profile crypto-review
-$env:AWS_PROFILE = 'crypto-review'
-$env:AWS_REGION = 'ap-southeast-1'
+$env:AWS_PROFILE = 'default'
+$env:AWS_REGION = 'eu-north-1'
 $env:AWS_DEFAULT_REGION = $env:AWS_REGION
+$deploymentName = 'crypto-repro-20261109-eun1'
+$env:COMPOSE_PROJECT_NAME = $deploymentName
+$env:AIRFLOW_WEB_PORT = '18080'
+$env:SPARK_WEB_PORT = '18081'
+$env:SPARK_HOST_PORT = '17077'
 aws sts get-caller-identity
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-local.txt
-.\.venv\Scripts\python.exe scripts/bootstrap.py
+.\.venv\Scripts\python.exe scripts/bootstrap.py --region $env:AWS_REGION
 ```
 
-For SSO, enter the start URL, SSO region, account and permission set supplied by your
-administrator; use `ap-southeast-1` as client region and JSON output. An existing host
-profile can replace SSO by setting AWS_PROFILE. Expected: STS shows the intended account/role.
+This block uses an authenticated host profile named `default`. On a new host, first
+run `aws configure sso --profile crypto-review`, entering the start URL, SSO region,
+account and permission set supplied by your administrator; choose `eu-north-1` as
+client region and JSON output. Then run `aws sso login --profile crypto-review`
+and use `$env:AWS_PROFILE = 'crypto-review'` in the block above. Expected: STS shows
+the intended account/role. Do not continue if it is the wrong account. Keep the same
+profile and region for every command. Choose an unused deployment name and unused
+local ports; the example ports allow this stack to coexist with the default stack.
 The bootstrap copies `.env.example` to `.env` if absent and generates missing Fernet,
 API session, JWT keys and a local UI password without printing them. Existing nonempty
 values are preserved. Never commit `.env` or print expanded Compose configuration.
@@ -80,23 +92,37 @@ Terraform defaults stay private. Validation rejects broader client networks, inc
 Copy-Item terraform/terraform.tfvars.example terraform/terraform.tfvars
 $clientIp = (Invoke-RestMethod 'https://checkip.amazonaws.com').Trim()
 [System.Net.IPAddress]::Parse($clientIp) | Out-Null
-@('redshift_publicly_accessible = true', ('redshift_allowed_cidr = "{0}/32"' -f $clientIp)) |
+@(
+  ('aws_region = "{0}"' -f $env:AWS_REGION)
+  ('deployment_name = "{0}"' -f $deploymentName)
+  ('athena_workgroup_name = "{0}"' -f $deploymentName)
+  ('redshift_namespace_name = "{0}"' -f $deploymentName)
+  ('redshift_workgroup_name = "{0}"' -f $deploymentName)
+  'redshift_max_capacity = 8'
+  'redshift_publicly_accessible = true'
+  ('redshift_allowed_cidr = "{0}/32"' -f $clientIp)
+) |
   Set-Content terraform/reviewer.auto.tfvars
+terraform -chdir=terraform fmt reviewer.auto.tfvars
 New-Item -ItemType Directory -Force .codex-build | Out-Null
 terraform -chdir=terraform init -lockfile=readonly
 terraform -chdir=terraform fmt -check
 terraform -chdir=terraform validate
-terraform -chdir=terraform plan -out=../.codex-build/review.tfplan
+terraform -chdir=terraform plan '-out=../.codex-build/review.tfplan'
 # Inspect the plan. The following command creates BILLABLE resources.
-terraform -chdir=terraform apply ../.codex-build/review.tfplan
+terraform -chdir=terraform apply '../.codex-build/review.tfplan'
 $bucket = terraform -chdir=terraform output -raw catalog_bucket_name
 if ($LASTEXITCODE -ne 0) { throw 'Missing bucket output' }
-.\.venv\Scripts\python.exe scripts/bootstrap.py --bucket $bucket
+.\.venv\Scripts\python.exe scripts/bootstrap.py --bucket $bucket --region $env:AWS_REGION
 .\.venv\Scripts\python.exe scripts/export_aws_credentials.py
 ```
 
 Expected: S3, Glue database/table, Athena workgroup, namespace/workgroup, security group
-and Spectrum IAM role. Keep `data_lake_bucket_name = null` for this walkthrough.
+and Spectrum IAM role with a new deployment prefix. Require a create-only plan for
+the new stack, and check that its names are unused in this account/region. Do not
+import the old deployment into this fresh state. Keep `data_lake_bucket_name = null`.
+The review uses 8 base RPUs and an 8-RPU scaling ceiling; storage and other AWS
+services are billed separately. Review the regional rates before applying.
 `catalog_bucket_name` identifies the actual Glue bucket even when overridden. State/plans
 are ignored and may contain sensitive metadata; retain them securely for future teardown.
 The exporter freezes the host session into ignored `.aws-runtime/credentials`, mounted
@@ -139,9 +165,9 @@ a blocker. Default symbol: BTCUSDT. To change it, add the symbol to the seed and
 AIRFLOW_VAR_SYMBOL in `.env`, then recreate containers. SMTP is optional; failure mail
 is disabled unless EMAILS is configured.
 
-Open [Airflow](http://localhost:8080) as `airflow`; read the generated
+Open [Airflow](http://localhost:18080) as `airflow`; read the generated
 _AIRFLOW_WWW_USER_PASSWORD in your local `.env` editor, never shared terminal output.
-[Spark UI](http://localhost:8081) should show completed applications. If the run crosses
+[Spark UI](http://localhost:18081) should show completed applications. If the run crosses
 UTC midnight, explicitly set `$runDate` to the ingest_date in that run's Raw object key.
 
 ```powershell
@@ -167,7 +193,7 @@ Test-NetConnection $env:DBT_REDSHIFT_HOST -Port ([int]$env:DBT_REDSHIFT_PORT)
 ```
 
 Expected: no broken requirements and TcpTestSucceeded=True. Dot-sourcing loads endpoint,
-port, DB and namespace from Terraform outputs, reads the managed secret ARN using
+port, DB, region and namespace from Terraform outputs, reads the managed secret ARN using
 get-namespace and captures get-secret-value directly into memory. It exports
 DBT_ENV_SECRET_REDSHIFT_PASSWORD, which dbt masks, and never prints/writes the password.
 Do not enable shell tracing. The profile requires TLS; the SQL helper verifies the
@@ -176,8 +202,10 @@ a new plan. Check local firewall/VPC routing; never broaden ingress.
 
 ### 5. Register partitions and create Spectrum schema
 
-The following queries incur AWS charges. The helper replaces `${RUN_DATE}` only after
-validating its ISO date; do not paste unresolved placeholders into a SQL editor.
+The following queries incur AWS charges. The helper replaces `${RUN_DATE}` and the
+Spectrum `${AWS_REGION}` only after validating them. The connection script reads the
+region from this deployment's Terraform output. Do not paste unresolved placeholders
+into a SQL editor.
 
 ```powershell
 foreach ($file in (Get-ChildItem sql/athena/*.sql | Sort-Object Name)) {
@@ -203,14 +231,14 @@ $env:DBT_SEND_ANONYMOUS_USAGE_STATS = 'false'
 .\.venv-dbt\Scripts\dbt.exe test --project-dir dbt --profiles-dir dbt
 .\.venv-dbt\Scripts\dbt.exe docs generate --project-dir dbt --profiles-dir dbt
 .\.venv-dbt\Scripts\python.exe scripts/run_sql.py --engine redshift --file sql/redshift/03_preview_gold_marts.sql --date $runDate
-.\.venv-dbt\Scripts\dbt.exe docs serve --project-dir dbt --profiles-dir dbt --port 8082
+.\.venv-dbt\Scripts\dbt.exe docs serve --project-dir dbt --profiles-dir dbt --port 18082
 ```
 
 Expected: successful debug connection, seed loaded, 4 models built, all 55 tests pass,
 catalog/manifest generated. Both Gold tables and selected-date counts must be nonempty;
 observations must equal Silver's count for the date. Schemas are analytics_staging,
 analytics_intermediate, analytics_gold and analytics_reference: dbt appends custom schemas
-to the profile schema. Inspect lineage in [docs](http://localhost:8082); Ctrl+C stops it.
+to the profile schema. Inspect lineage in [docs](http://localhost:18082); Ctrl+C stops it.
 Close the terminal or remove Env:DBT_ENV_SECRET_REDSHIFT_PASSWORD afterwards.
 
 Tests reject empty source/staging/intermediate/seed/marts, null/duplicate keys,
@@ -270,6 +298,8 @@ scanning intentionally includes ignored `.env`: local secrets may be found witho
 being Git leaks. Dependency caches/generated output are excluded. Do not print findings'
 values. See [security cleanup](docs/SECURITY.md), [audit evidence](docs/AUDIT.md), and the
 [executed end-to-end check](docs/E2E_CHECK_2026-10-27.md).
+The [clean-state check on 2026-11-10](docs/E2E_CHECK_2026-11-10.md) created a new
+eu-north-1 deployment and executed this updated walkthrough through all 55 tests.
 
 Stop services with `docker compose down` (no -v, preserving PostgreSQL data). AWS remains
 billable separately. To retire the sandbox, preserve necessary data/state, inspect
@@ -277,8 +307,7 @@ billable separately. To retire the sandbox, preserve necessary data/state, inspe
 `terraform -chdir=terraform destroy`. Nonempty buckets may block destruction; do not
 delete contents without a data-retention decision.
 
-The original audit did not deploy AWS. Separately authorized follow-ups cleaned local
-history and prepared the source commit/publication (see docs/SECURITY.md and docs/AUDIT.md).
-Keep local `.env`, credentials, tfvars/state/plans, caches/logs/build output and unrelated
-output presentations out of Git. Separately review the user's preexisting source/test/data
-deletions; do not silently restore or stage them with git add -A.
+Keep local `.env`, credentials, tfvars/state/plans, caches/logs/build output and
+generated artifacts out of Git. Retain private state securely for the teardown of
+this deployment. Historical audit/security reports describe their own dated scope;
+use the latest executed check for current runtime evidence.

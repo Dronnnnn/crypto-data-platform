@@ -1,5 +1,5 @@
 locals {
-  project_name = "crypto-data-platform"
+  project_name = var.deployment_name
 
   name_prefix = local.project_name
 

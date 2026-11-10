@@ -16,6 +16,7 @@ resource "aws_redshiftserverless_workgroup" "warehouse" {
   workgroup_name      = var.redshift_workgroup_name
   namespace_name      = aws_redshiftserverless_namespace.warehouse.namespace_name
   base_capacity       = var.redshift_base_capacity
+  max_capacity        = var.redshift_max_capacity
   publicly_accessible = var.redshift_publicly_accessible
   port                = var.redshift_port
   security_group_ids  = [aws_security_group.redshift_serverless.id]

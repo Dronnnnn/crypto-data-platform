@@ -16,7 +16,14 @@ $env:DBT_REDSHIFT_HOST = Get-TerraformValue 'redshift_endpoint_host'
 $env:DBT_REDSHIFT_PORT = Get-TerraformValue 'redshift_endpoint_port'
 $env:DBT_REDSHIFT_DBNAME = Get-TerraformValue 'redshift_database_name'
 $env:DBT_REDSHIFT_SCHEMA = 'analytics'
-$env:AWS_DEFAULT_REGION = 'ap-southeast-1'
+$deploymentRegion = Get-TerraformValue 'aws_region' -Optional
+if (-not $deploymentRegion) {
+    # Older state has no region output. Preserve the explicitly chosen host region.
+    $deploymentRegion = $env:AWS_REGION
+    if (-not $deploymentRegion) { $deploymentRegion = $env:AWS_DEFAULT_REGION }
+    if (-not $deploymentRegion) { throw 'Set AWS_REGION for this older Terraform state' }
+}
+$env:AWS_DEFAULT_REGION = $deploymentRegion
 $env:AWS_REGION = $env:AWS_DEFAULT_REGION
 $env:ATHENA_WORKGROUP = Get-TerraformValue 'athena_workgroup_name'
 $namespaceName = Get-TerraformValue 'redshift_namespace_name' -Optional

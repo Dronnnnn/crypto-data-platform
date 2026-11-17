@@ -12,3 +12,5 @@ seeds:
         tests: [not_null]
       - name: asset_name
         tests: [not_null]
+      - name: is_active
+        tests: [not_null]

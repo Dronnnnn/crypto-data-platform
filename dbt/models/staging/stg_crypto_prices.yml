@@ -2,7 +2,10 @@ version: 2
 
 models:
   - name: stg_crypto_prices
-    description: Standardized and defensively filtered table of Spectrum Silver prices.
+    description: >
+      Incremental current observations keyed by stable record_id. Compares all
+      visible source rows, including old dates and processing-time corrections;
+      missing source keys remain until full refresh. Not a history table.
     tests: [not_empty]
     columns:
       - name: record_id

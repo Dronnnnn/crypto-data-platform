@@ -1,0 +1,11 @@
+version: 2
+snapshots:
+  - name: crypto_symbols_snapshot
+    description: Observed business-state history of the curated symbol reference.
+    columns:
+      - name: symbol
+        tests: [not_null]
+      - name: dbt_scd_id
+        tests: [not_null, unique]
+      - name: dbt_valid_from
+        tests: [not_null]

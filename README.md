@@ -2,7 +2,8 @@
 
 Binance → Airflow → S3 Raw → Spark Bronze/Silver → Glue → Spectrum → dbt → Redshift Gold.
 The project demonstrates sources/ref, a reference seed, layered models, windows, two
-marts, generic/reconciliation tests and docs. The assessment covers the six supplied
+marts, incremental staging, reference snapshots, transactional audit hooks,
+generic/reconciliation tests and docs. The assessment covers the six supplied
 criteria only: no Material assignment link was provided.
 
 ## Prerequisites
@@ -227,6 +228,7 @@ without SQL exceptions. The external schema uses the namespace's default Spectru
 $env:DBT_SEND_ANONYMOUS_USAGE_STATS = 'false'
 .\.venv-dbt\Scripts\dbt.exe debug --project-dir dbt --profiles-dir dbt
 .\.venv-dbt\Scripts\dbt.exe seed --project-dir dbt --profiles-dir dbt
+.\.venv-dbt\Scripts\dbt.exe snapshot --project-dir dbt --profiles-dir dbt
 .\.venv-dbt\Scripts\dbt.exe run --project-dir dbt --profiles-dir dbt
 .\.venv-dbt\Scripts\dbt.exe test --project-dir dbt --profiles-dir dbt
 .\.venv-dbt\Scripts\dbt.exe docs generate --project-dir dbt --profiles-dir dbt
@@ -234,10 +236,11 @@ $env:DBT_SEND_ANONYMOUS_USAGE_STATS = 'false'
 .\.venv-dbt\Scripts\dbt.exe docs serve --project-dir dbt --profiles-dir dbt --port 18082
 ```
 
-Expected: successful debug connection, seed loaded, 4 models built, all 55 tests pass,
+Expected: successful debug connection, seed loaded, reference snapshot updated,
+4 models built, all tests pass (the historical 55-test reports predate this extension),
 catalog/manifest generated. Both Gold tables and selected-date counts must be nonempty;
 observations must equal Silver's count for the date. Schemas are analytics_staging,
-analytics_intermediate, analytics_gold and analytics_reference: dbt appends custom schemas
+analytics_intermediate, analytics_gold, analytics_reference and analytics_snapshots: dbt appends custom schemas
 to the profile schema. Inspect lineage in [docs](http://localhost:18082); Ctrl+C stops it.
 Close the terminal or remove Env:DBT_ENV_SECRET_REDSHIFT_PASSWORD afterwards.
 
@@ -254,7 +257,9 @@ counts detect silently filtered rows. Pause ingestion to keep inputs stable duri
 | Bronze/Silver | One Raw object; SHA-256 record_id in Silver | DECIMAL(20,8), validation/quarantine, Parquet by source/date |
 | Spectrum source | Same observation | Glue supplies schema/partitions; data remains in S3 |
 | crypto_symbols seed | One symbol, unique symbol | Small reviewed enrichment/allowed-symbol reference |
-| stg_crypto_prices | One observation, unique record_id | Table standardizes Spectrum; ordinary schema-bound views cannot directly query Spectrum |
+| stg_crypto_prices | One observation, unique record_id | Incremental local table; compares all source rows and replaces new/changed keys with delete+insert |
+| crypto_symbols_snapshot | One symbol/version, dbt_scd_id | History of business attributes; at most one open version per symbol |
+| dbt_model_run_audit | One successful model execution/invocation_id | Transactional hook records model name and time without a row-count scan |
 | int_crypto_prices_with_previous | One observation, unique record_id | Reusable LAG view per source/symbol |
 | gold_latest_crypto_price | One source/symbol, MD5 composite key | ROW_NUMBER selects latest technical observation; consumer table |
 | gold_daily_crypto_price_summary | One source/date/symbol, MD5 composite key | Consumer table with count/min/max/average |
@@ -265,11 +270,57 @@ full rebuild from selecting an older ingestion day as latest. bronze_loaded_at i
 deterministic order within a day, not proof of exchange chronology or which payload was
 landed last that day. Rebuilding Bronze changes technical timestamps. Price changes
 compare technically ordered observations, not guaranteed consecutive exchange ticks.
-Full rebuilds suit this dataset's size; incremental/snapshots are not added for checklist
-coverage. Snapshots suit changing entity state rather than individual price observations.
+Staging uses incremental upserts; Gold tables still rebuild completely. The snapshot
+tracks changing reference entity state rather than individual price observations.
 Glue is metadata, Athena explores Parquet, Spectrum connects lake and warehouse, dbt owns
 warehouse transformations/contracts. Event time, retention, production deployment roles
-and incremental ingestion need separate design.
+and incremental Spark ingestion need separate design.
+
+## Incremental, snapshot and hook workflow
+
+See [dbt operation and isolated verification](docs/DBT_STATE.md) for the exact
+commands, objects, deletion policy and acceptance scenarios. Airflow automates Raw
+through Silver only; partition registration and dbt remain manual. `dbt run` builds
+models and executes their hooks, but **does not run snapshots**. After Silver/Glue
+are ready, the first and subsequent dbt cycles use the same order:
+
+```powershell
+.\.venv-dbt\Scripts\dbt.exe seed --project-dir dbt --profiles-dir dbt
+.\.venv-dbt\Scripts\dbt.exe snapshot --project-dir dbt --profiles-dir dbt
+.\.venv-dbt\Scripts\dbt.exe run --project-dir dbt --profiles-dir dbt
+.\.venv-dbt\Scripts\dbt.exe test --project-dir dbt --profiles-dir dbt
+```
+
+The first staging run creates a full table. Later runs compare all currently visible
+Silver observations, including old dates, and upsert new/changed `record_id` values.
+They also refresh seed enrichment and technical timestamps. Rebuilding Spark can
+therefore update every staging row; this design saves unchanged writes when the source
+is unchanged, **not Spectrum scans**. Removed source keys remain until a full refresh;
+count reconciliation intentionally flags this drift. Use `dbt run --full-refresh`
+(with the same project/profile options) after deliberate deletions, incompatible schema
+changes or transformation changes requiring reconstruction. This rebuilds models, not
+snapshot history. The source must already reflect the intended deletion: Spark dynamic
+overwrite can retain stale partitions.
+
+Snapshots retain old business-attribute versions; incremental staging keeps the current
+row for each observation. An unchanged seed creates no new snapshot version. Always
+seed first to publish CSV edits. The post-hook appends a success record to
+`analytics_staging.dbt_model_run_audit` in the model's transaction, including no-op and
+full-refresh runs. It does not assert that later data tests passed.
+
+Alternatively, `dbt build --project-dir dbt --profiles-dir dbt` executes seeds,
+snapshots, models and tests in dependency order, with tests able to block downstream
+resources. Seed references ensure the seed precedes its snapshot and staging. The
+snapshot and staging are independent siblings; build does not guarantee their relative
+order. Use the explicit sequence above when a strict operational order is desired.
+
+The isolated Redshift check on 2026-11-17 passed all 62 data tests plus incremental,
+snapshot and audit rollback scenarios. Fixtures and test schemas were removed; live
+S3/Spectrum and production dbt relations were not changed by that isolated check.
+The subsequent [full live check on 2026-11-17](docs/E2E_CHECK_2026-11-17.md) executed
+Binance through Gold, verified 44 source/staging rows and passed all 62 tests in both
+the first and unchanged-repeat cycles. See those reports for the acceptance boundary
+and the separately authorized client /32 ingress update.
 
 ## Local checks and acceptance boundary
 
@@ -280,6 +331,7 @@ $env:DBT_REDSHIFT_USER = 'offline_parse'
 $env:DBT_ENV_SECRET_REDSHIFT_PASSWORD = 'offline_parse_placeholder'
 $env:DBT_SEND_ANONYMOUS_USAGE_STATS = 'false'
 .\.venv-dbt\Scripts\dbt.exe parse --project-dir dbt --profiles-dir dbt --no-partial-parse
+.\.venv-dbt\Scripts\python.exe dbt/checks/check_incremental.py
 $env:S3_BUCKET = 'offline-test-bucket'
 .\.venv\Scripts\python.exe -m pytest -q --tb=short tests/test_raw_storage.py tests/test_run_sql.py
 docker compose --profile test run --rm --build spark-tests

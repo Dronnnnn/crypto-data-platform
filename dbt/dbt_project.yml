@@ -18,7 +18,7 @@ models:
       # Redshift cannot create a view that directly selects from a Spectrum
       # external table. Materialize the S3-backed source as a regular local
       # table before downstream views and Gold marts use it.
-      +materialized: table
+      +materialized: incremental
       +schema: staging
     intermediate:
       +materialized: view
